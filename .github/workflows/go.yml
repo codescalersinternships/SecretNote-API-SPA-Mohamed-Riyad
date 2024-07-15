@@ -20,7 +20,7 @@ jobs:
           go-version: '1.22.4'
 
       - name: Go fmt
-        run: go fmt ./...
+        run: cd backend && go fmt ./...
 
       - name: Golangci Linter
         uses: golangci/golangci-lint-action@v6
@@ -28,7 +28,7 @@ jobs:
             args: --skip-dirs=../../../go/pkg
 
       - name: Go test
-        run: go test ./...
+        run: cd backend && go test ./...
 
 
 
