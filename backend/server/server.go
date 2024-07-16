@@ -1,37 +1,35 @@
-package main
+package server
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
-	"fmt"
+	"github.com/codescalersinternships/SecretNote-API-SPA-Mohamed-Riyad/models"
+	"github.com/codescalersinternships/SecretNote-API-SPA-Mohamed-Riyad/repository"
+	"github.com/gorilla/mux"
 	"net/http"
+	"strconv"
 )
 
-type Note struct {
-	ID        int    `json:"id"`
-	UserID    int    `json:"user_id"`
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	ViewCount int    `json:"view_count"`
+type Server struct {
+	userRepository repository.UserRepository
+	noteRepository repository.NoteRepository
 }
 
-type user struct {
-	UserName string `json:"user_name"`
-	Password string `json:"password"`
+func NewServer(userRepository repository.UserRepository, noteRepository repository.NoteRepository) Server {
+	return Server{
+		userRepository: userRepository,
+		noteRepository: noteRepository,
+	}
 }
 
-var db *sql.DB
-
-func signUp(w http.ResponseWriter, r *http.Request) {
-	var user user
+func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
+	var user models.User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO users (user_name, password) VALUES (?, ?)", user.UserName, user.Password)
+	err = s.userRepository.Create(&user)
 	if err != nil {
 		http.Error(w, "User already exists", http.StatusConflict)
 		return
@@ -40,9 +38,8 @@ func signUp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func signIn(w http.ResponseWriter, r *http.Request) {
-
-	var user user
+func (s *Server) SignIn(w http.ResponseWriter, r *http.Request) {
+	var user models.User
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -50,14 +47,13 @@ func signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var storedPassword string
-	err = db.QueryRow("SELECT password FROM users WHERE user_name = ?", user.UserName).Scan(&storedPassword)
+	storedUser, err := s.userRepository.GetByUsername(user.UserName)
 	if err != nil {
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
 
-	if user.Password != storedPassword {
+	if user.Password != storedUser.Password {
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
@@ -65,197 +61,86 @@ func signIn(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func updateNoteViewCount(note Note, id int) error {
-	note.ViewCount++
-
+func updateNoteViewCount(note *models.Note, s *Server) error {
+	note.ViewCount = note.ViewCount + 1
+	err := s.noteRepository.Update(note)
+	if err != nil {
+		return err
+	}
 	if note.ViewCount > 5 {
-
-		delStmt, err := db.Prepare("DELETE FROM notes WHERE id = ?")
-		if err != nil {
-			return err
-		}
-		defer delStmt.Close()
-
-		_, err = delStmt.Exec(id)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("note deleted due to exceeding view limit")
-	} else {
-		updateStmt, err := db.Prepare("UPDATE notes SET view_count = ? WHERE id = ?")
-		if err != nil {
-			return err
-		}
-		defer updateStmt.Close()
-
-		_, err = updateStmt.Exec(note.ViewCount, id)
+		err = s.noteRepository.Delete(note.ID)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func createNote(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var note Note
+	var note models.Note
 	err := json.NewDecoder(r.Body).Decode(&note)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	stmt, err := db.Prepare("INSERT INTO notes(user_id, title, content) VALUES (?, ?, ?)")
+	err = s.noteRepository.Create(&note)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(note.UserID, note.Title, note.Content)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	note.ID = int(id)
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(note)
 }
 
-func getNote(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetNote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-
-	stmt, err := db.Prepare("SELECT id, user_id, title, content, view_count FROM notes WHERE id = ?")
+	vars := mux.Vars(r)
+	noteIDStr := vars["noteId"]
+	noteID, err := strconv.ParseUint(noteIDStr, 10, 32)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer stmt.Close()
-
-	var note Note
-	err = stmt.QueryRow(id).Scan(&note.ID, &note.UserID, &note.Title, &note.Content, &note.ViewCount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "Note not found", http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		http.Error(w, "Invalid note ID", http.StatusBadRequest)
 		return
 	}
 
-	err = updateNoteViewCount(note, note.ID)
+	note, err := s.noteRepository.GetByID(uint(noteID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Note not found", http.StatusNotFound)
+		return
 	}
-
+	err = updateNoteViewCount(note, s)
+	if err != nil {
+		http.Error(w, "Note cant be updated", http.StatusInternalServerError)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(note)
 }
 
-func getAllNotes(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetAllNotes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
-
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		http.Error(w, "Missing user_id parameter", http.StatusBadRequest)
-		return
-	}
-
-	stmt, err := db.Prepare("SELECT id, user_id, title, content, view_count FROM notes WHERE user_id = ?")
+	vars := mux.Vars(r)
+	userIDStr := vars["userId"]
+	userId, err := strconv.ParseUint(userIDStr, 10, 32)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
-	defer stmt.Close()
 
-	rows, err := stmt.Query(userID)
+	notes, err := s.noteRepository.GetAllByUserID(uint(userId))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Note not found", http.StatusNotFound)
 		return
-	}
-	defer rows.Close()
-
-	var notes []Note
-	for rows.Next() {
-		var note Note
-		err = rows.Scan(&note.ID, &note.UserID, &note.Title, &note.Content, &note.ViewCount)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		err = updateNoteViewCount(note, note.ID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		notes = append(notes, note)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(notes)
-}
-
-func main() {
-
-	db, err := sql.Open("sqlite3", "./dataBase.db")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer db.Close()
-
-	_, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_name TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL
-        );
-    `)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	_, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL references users(id),
-            title TEXT NOT NULL ,
-            content TEXT NOT NULL,
-            view_count INTEGER DEFAULT 0
-        );
-    `)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	http.HandleFunc("/signup", signUp)
-	http.HandleFunc("/signin", signIn)
-	http.HandleFunc("/createNote", createNote)
-	http.HandleFunc("/getNote", getNote)
-	http.HandleFunc("/getAllNotes", getAllNotes)
-
-	fmt.Println("Server started at :8080")
-	err = http.ListenAndServe(":8080", nil)
-	if err != nil {
-		fmt.Println(err)
-	}
 }
