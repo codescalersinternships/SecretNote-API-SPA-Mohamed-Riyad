@@ -25,14 +25,7 @@ jobs:
       - name: Golangci Linter
         uses: golangci/golangci-lint-action@v6
         with:
-            args: --skip-dirs=../../../go/pkg
-            golint-path: './backend'
+          args: --skip-dirs=../../../go/pkg ./backend
 
       - name: Go test
         run: cd backend && go test ./...
-
-
-
-
-
-
