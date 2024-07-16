@@ -1,12 +1,8 @@
-<script setup>
-import CreateNote from './components/CreateNote.vue';
+<script setup lang="ts">
 import Login from './components/Login.vue';
 
 </script>
 
 <template>
-   <CreateNote />
+  <Login  />
 </template>
-
-<style scoped>
-</style>
