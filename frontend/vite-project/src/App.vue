@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import Login from './components/Login.vue';
+import ViewNote from './components/ViewNote.vue';
 
+
+const dummyNote =  { id: 1, title: 'First Note' }
 </script>
 
 <template>
-  <Login  />
+  <ViewNote :note="dummyNote" />
 </template>
