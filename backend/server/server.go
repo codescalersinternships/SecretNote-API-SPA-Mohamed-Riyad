@@ -35,7 +35,8 @@ func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user.ID)
 }
 
 func (s *Server) SignIn(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +59,8 @@ func (s *Server) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user.ID)
 }
 
 func updateNoteViewCount(note *models.Note, s *Server) error {

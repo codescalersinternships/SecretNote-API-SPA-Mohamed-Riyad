@@ -1,47 +1,37 @@
 <template>
   <div class="view-note">
     <h2>Note Details</h2>
-    <div>
-      <strong>Title:</strong> {{ note.title }}
+    <div v-if="note">
+      <h3>Note Title :{{ note.title }}</h3>
+      <p>{{ note.content }}</p>
     </div>
-    <div>
-      <strong>Content:</strong>
-      <pre>{{ note.content }}</pre>
+    <div v-else>
+      <p>Loading...</p>
     </div>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'ViewNote',
-  props: {
-    note: {
-      type: Object,
-      required: true
-    }
-  }
-};
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
+import { notes } from '../notes'; 
+
+
+const route = useRoute();
+const noteId = ref(parseInt(route.params.id as string, 10));
+
+const note = computed(() => {
+  return notes.value.find(n => n.ID === noteId.value);
+});
+
 </script>
 
 <style scoped>
 .view-note {
-  max-width: 800px;
-  width: 600px;
-  margin: 0 auto;
-  padding: 1em;
-  border: 1px solid #ccc;
-  border-radius: 1em;
-}
-
-.view-note div {
-  margin-bottom: 1em;
-}
-
-.view-note strong {
-  color: #ffffff;
-}
-
-.view-note pre {
-  white-space: pre-wrap;
+  max-width: 600px;
+  margin: auto;
+  border: 10px;
+  border-color: aliceblue;
+  border-radius: 2%;
 }
 </style>

@@ -1,10 +1,13 @@
+<template>
+  <div id="app">
+    <router-view></router-view>
+  </div>
+</template>
+
 <script setup lang="ts">
-import ViewNote from './components/ViewNote.vue';
-
-
-const dummyNote =  { id: 1, title: 'First Note' }
+import { defineComponent } from 'vue';
 </script>
 
-<template>
-  <ViewNote :note="dummyNote" />
-</template>
+<style>
+
+</style>
