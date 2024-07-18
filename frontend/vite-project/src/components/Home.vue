@@ -11,7 +11,7 @@
 <script setup lang="ts">
 
 import { useRouter } from 'vue-router';
-import { userId } from '../userId'; 
+import { token } from '../token'; 
 import { setNotes } from '../notes'; 
 import { getAllNotes } from '../api';
 
@@ -26,20 +26,20 @@ const goToSignin = () => {
 };
 
 const createNote = () => {
-  if (userId.value!==null) {
+  if (token.value!==null) {
     router.push({ name: 'createnote' });
   } else {
-    console.error('User ID is not available');
+    console.error('token is not available');
   }
 };
 
 const  viewMyNotes = async() => {
-  if (userId.value!==null) {
-    const notes: any = await getAllNotes(userId.value)
+  if (token.value!==null) {
+    const notes: any = await getAllNotes(token.value)
     setNotes(notes)
     router.push({ name: 'allnotes'});
   } else {
-    console.error('User ID is not available');
+    console.error('token is not available');
   }
 };
 </script>

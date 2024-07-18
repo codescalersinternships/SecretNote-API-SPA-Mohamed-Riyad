@@ -19,7 +19,7 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
-import { setUserId } from '../userId';
+import { setToken } from '../token';
 
 interface UserData {
   username: string;
@@ -41,8 +41,8 @@ const signUp = async () => {
   };
   try {
     const response = await axios.post('http://localhost:8080/signup', userData);
-    const userId: number = response.data;
-    setUserId(userId);
+    const { token } = response.data;
+    setToken(token);
     router.push('/');
   } catch (error) {
     console.error('Error signing up:', error);
@@ -56,8 +56,8 @@ const login = async () => {
       password: password.value
     };
     const response = await axios.post('http://localhost:8080/signin', userData);
-    const userId: number = response.data;
-    setUserId(userId);
+    const { token } = response.data;
+    setToken(token);
     router.push('/');
   } catch (error) {
     console.error('Error signing in:', error);

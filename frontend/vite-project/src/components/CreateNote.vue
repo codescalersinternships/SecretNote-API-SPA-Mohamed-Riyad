@@ -19,7 +19,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { userId } from '../userId'; 
+import { token } from '../token'; 
 
 const router = useRouter();
 
@@ -28,13 +28,16 @@ const content = ref('');
 
 const createNote = async () => {
   const noteData = {
-    user_id: userId.value,
     title: title.value,
     content: content.value,
   };
 
   try {
-    await axios.post('http://localhost:8080/create-note', noteData);
+    await axios.post('http://localhost:8080/create-note', noteData, {
+      headers: {
+        Authorization: `Bearer ${token.value}`
+      }
+    });
     router.push('/');
   } catch (error) {
     console.error('Error creating note:', error);

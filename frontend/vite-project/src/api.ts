@@ -5,9 +5,13 @@ const API_BASE_URL = 'http://localhost:8080';
 
 
 
-export const getNote = async (noteId: number) => {
+export const getNote = async (noteId: number, token: string) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/get-note/${noteId}`);
+    const response = await axios.get(`${API_BASE_URL}/get-note/${noteId}`,{
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
     return response.data;
   } catch (error) {
     console.error('Error getting note:', error);
@@ -15,9 +19,13 @@ export const getNote = async (noteId: number) => {
   }
 };
 
-export const getAllNotes = async (userId: number) => {
+export const getAllNotes = async (token: string) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/get-all-notes/${userId}`);
+    const response = await axios.get(`${API_BASE_URL}/get-all-notes`,{
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
     return response.data;
   } catch (error) {
     console.error('Error getting all notes:', error);
