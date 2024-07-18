@@ -24,9 +24,10 @@ func main() {
 
 	r.HandleFunc("/signup", newServer.SignUp).Methods("POST")
 	r.HandleFunc("/signin", newServer.SignIn).Methods("POST")
-	r.HandleFunc("/create-note", newServer.CreateNote).Methods("POST")
-	r.HandleFunc("/get-note/{noteId}", newServer.GetNote).Methods("GET")
-	r.HandleFunc("/get-all-notes/{userId}", newServer.GetAllNotes).Methods("GET")
+
+	r.Handle("/create-note", newServer.ValidateToken(http.HandlerFunc(newServer.CreateNote))).Methods("POST")
+	r.Handle("/get-note/{noteId}", newServer.ValidateToken(http.HandlerFunc(newServer.GetNote))).Methods("GET")
+	r.Handle("/get-all-notes", newServer.ValidateToken(http.HandlerFunc(newServer.GetAllNotes))).Methods("GET")
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5174"},

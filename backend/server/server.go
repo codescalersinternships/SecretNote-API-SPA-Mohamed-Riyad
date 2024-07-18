@@ -5,6 +5,7 @@ import (
 	"github.com/codescalersinternships/SecretNote-API-SPA-Mohamed-Riyad/models"
 	"github.com/codescalersinternships/SecretNote-API-SPA-Mohamed-Riyad/repository"
 	"github.com/gorilla/mux"
+	"golang.org/x/net/context"
 	"net/http"
 	"strconv"
 )
@@ -20,7 +21,25 @@ func NewServer(userRepository repository.UserRepository, noteRepository reposito
 		noteRepository: noteRepository,
 	}
 }
+func (s *Server) ValidateToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Missing token", http.StatusUnauthorized)
+			return
+		}
 
+		tokenString := authHeader[len("Bearer "):]
+		claims, err := ValidateJWT(tokenString)
+		if err != nil {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
 func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	err := json.NewDecoder(r.Body).Decode(&user)
@@ -35,13 +54,18 @@ func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := GenerateJWT(user.ID)
+	if err != nil {
+		http.Error(w, "Could not generate token", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user.ID)
+	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
 func (s *Server) SignIn(w http.ResponseWriter, r *http.Request) {
 	var user models.User
-
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -59,8 +83,14 @@ func (s *Server) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := GenerateJWT(storedUser.ID)
+	if err != nil {
+		http.Error(w, "Could not generate token", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user.ID)
+	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
 func updateNoteViewCount(note *models.Note, s *Server) error {
@@ -83,12 +113,19 @@ func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := r.Context().Value("userID")
+	if userID == nil {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
 	var note models.Note
 	err := json.NewDecoder(r.Body).Decode(&note)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	note.UserID = userID.(uint)
 	err = s.noteRepository.Create(&note)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -100,6 +137,12 @@ func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 func (s *Server) GetNote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := r.Context().Value("userID")
+	if userID == nil {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
 
@@ -116,6 +159,12 @@ func (s *Server) GetNote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Note not found", http.StatusNotFound)
 		return
 	}
+
+	if note.UserID != userID {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
 	err = updateNoteViewCount(note, s)
 	if err != nil {
 		http.Error(w, "Note cant be updated", http.StatusInternalServerError)
@@ -129,15 +178,14 @@ func (s *Server) GetAllNotes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
-	vars := mux.Vars(r)
-	userIDStr := vars["userId"]
-	userId, err := strconv.ParseUint(userIDStr, 10, 32)
-	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+
+	userID := r.Context().Value("userID")
+	if userID == nil {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
 
-	notes, err := s.noteRepository.GetAllByUserID(uint(userId))
+	notes, err := s.noteRepository.GetAllByUserID(userID.(uint))
 	if err != nil {
 		http.Error(w, "Note not found", http.StatusNotFound)
 		return
